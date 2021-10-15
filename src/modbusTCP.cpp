@@ -8,15 +8,15 @@
 
 #include <iostream>
 #include <modbus/modbus-tcp.h>
+#include <MR_JE.h>
 #include <thread>
 
 using namespace std;
 
-modbus_t *mb;
+modbus_t *servo1, *servo2;
 uint8_t bits[16];//read buffer
 uint8_t coil[16];//write buffer
-//uint16_t tab_reg[32];
-
+uint16_t w_reg[4], r_reg[4]; //write register and read register respectivelly
 
 uint16_t convert_raw_data_to_word( int nb, uint8_t *bits)
 {
@@ -42,12 +42,88 @@ int convert_word_to_raw_data(int nb, uint16_t data, uint8_t *bits)
 	return 1;
 }
 
-int program()
+int main() {
+
+	thread read;
+	char mode;
+
+	servo1 = modbus_new_tcp("10.8.0.201", 502);
+	servo2 = modbus_new_tcp("10.8.0.202", 502);
+
+	//Verifica se o objeto modbus foi criado
+	if (servo2 == NULL) {
+	    printf("Unable to allocate libmodbus context\n");
+	    return -1;
+	}
+
+	//Verifica se a comunicacao foi realizada
+	if( modbus_connect( servo2 ) == -1 )
+	{
+		printf("Connection failed %s\n", modbus_strerror(errno));
+		return -1;
+	}
+	modbus_flush( servo2 );
+
+	//set_home_method(servo2, MR_METHOD_35);
+	servo_off( servo2 );
+
+	set_mode(servo2, MR_HOME_MODE);
+	//this_thread::sleep_for(500ms); //wait half second before continue
+	get_mode(servo2, &mode);
+	this_thread::sleep_for(500ms); //wait half second before continue
+
+	switch (mode) {
+		case MR_INDEXER_MODE:
+			printf("Mode: Indexer mode\n");
+			break;
+		case MR_POINT_TABLE:
+			printf("Mode: Point table mode (pt)\n");
+			break;
+		case MR_JOG_MODE:
+			printf("Mode: Jog mode\n");
+			break;
+		case MR_PROFILE_POSTION:
+			printf("Mode: Profile position mode\n");
+			break;
+		case MR_HOME_MODE:
+			printf("Home mode\n");
+			break;
+		default:
+			break;
+	}
+
+	if( modbus_read_registers(servo2, MR_STATUS_WORD , 1 , r_reg) == -1 )
+		printf("Note read %s", modbus_strerror(errno) );
+	else
+		printf("Inputs INT: %d Hex: 0x%X\n", r_reg[0], r_reg[0]);
+
+	modbus_close( servo2 );
+	modbus_free( servo2 );
+	modbus_free( servo1 );
+
+	//this_thread::sleep_for( chrono::milliseconds( 980 ) );
+	cout	<<	"Exit"	<<	endl;
+	return 0;
+}
+/**
+ * cout << "Modbus Test" << endl; // prints "Hello Modbus"
+	read_status =  modbus_read_input_bits(mb, 0, 8, bits);
+	input = convert_raw_data_to_word(8, bits);
+
+	cout << "Modbus read inputs: " << read_status << endl;
+
+	printf("Inputs Hex: 0x%X\n", input);
+
+	for (int var = 0; var < 8; ++var) {
+		printf("Input[%d]: %d\n", var, bits[var]);
+	}
+
+	int program()
 {
 	//if enters here, Factory I/O is running
-	modbus_read_input_bits(mb, 0, 16, bits);
+	modbus_read_input_bits(servo1, 0, 16, bits);
 	coil[0] = 1;
-	modbus_write_bits(mb, 16, 16, coil);
+	modbus_write_bits(servo1, 16, 16, coil);
 
 	do
 	{
@@ -63,68 +139,17 @@ int program()
 			coil[1] = 0;
 		}
 
-		modbus_write_bits(mb, 16, 16, coil);
-		modbus_read_input_bits(mb, 0, 16, bits);
+		modbus_write_bits(servo1, 16, 16, coil);
+		modbus_read_input_bits(servo1, 0, 16, bits);
 
 		if( bits[0] == 0 ) {
 			coil[0] = 0;
 			coil[1] = 0;
-			modbus_write_bits(mb, 16, 16, coil);
+			modbus_write_bits(servo1, 16, 16, coil);
 			printf("factory I/O paused\n");
 		}
 	}while( bits[0] );
 
 	return 1;
 }
-
-int main() {
-
-	thread read;
-
-	mb = modbus_new_tcp("10.2.0.27", 502);
-
-	//Verifica se o objeto modbus foi criado
-	if (mb == NULL) {
-	    printf("Unable to allocate libmodbus context\n");
-	    return -1;
-	}
-
-	//Verifica se a comunicacao foi realizada
-	if( modbus_connect( mb ) == -1 )
-	{
-		printf("Connection failed %s\n", modbus_strerror(errno));
-		return -1;
-	}
-
-	//Read First input to check if FACTIRY I/O is Running
-	modbus_read_input_bits(mb, 0, 1, bits);
-
-	if( bits[0] )
-	{
-		//Running lock in while
-		printf("Factory I/O running\n");
-		program();
-	}else
-		printf("Factory I/O not running\n");
-
-	modbus_close( mb );
-	modbus_free( mb );
-
-	//this_thread::sleep_for( chrono::milliseconds( 980 ) );
-	cout	<<	"Exit"	<<	endl;
-	return 0;
-}
-
-/**
- * cout << "Modbus Test" << endl; // prints "Hello Modbus"
-	read_status =  modbus_read_input_bits(mb, 0, 8, bits);
-	input = convert_raw_data_to_word(8, bits);
-
-	cout << "Modbus read inputs: " << read_status << endl;
-
-	printf("Inputs Hex: 0x%X\n", input);
-
-	for (int var = 0; var < 8; ++var) {
-		printf("Input[%d]: %d\n", var, bits[var]);
-	}
  */
