@@ -133,12 +133,25 @@ int is_EM2_on( modbus_t *servo )
 	}
 }
 
-/*int home( modbus_t *servo)
+int home( modbus_t *servo)
 {
 	int status;
 
-	status =
-}*/
+	//set home mode
+	status = set_mode(servo, MR_HOME_MODE);
+
+	if( status == -1 )
+		return status;
+
+	//issue home
+	status = write_register(servo, MR_CONTROL_WORD, 0x1F);
+
+	if( status == -1)
+		return status;
+
+	//loop to wait machine state
+
+}
 
 /**
  * Set mode of operation, if return -1 means that mode of operation was no set
