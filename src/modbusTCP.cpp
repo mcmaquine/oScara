@@ -10,6 +10,8 @@
 #include <modbus/modbus-tcp.h>
 #include <MR_JE.h>
 #include <thread>
+#include "robot.h"
+#include "cinematics.h"
 
 using namespace std;
 

@@ -36,6 +36,13 @@
 #define MR_POINT_TABLE		-101
 #define MR_INDEXER_MODE		-103
 
+//homing states
+#define MR_HOME_INTERRUPTED		0x400
+#define MR_ILA					0x800
+#define MR_HOME_COMPLETED		0x1400
+#define MR_HOME_ERROR_SPEED 	0x2000
+#define MR_HOME_ERROR_SPEED_0 	0x2400
+
 int servo_on		( modbus_t *servo );
 int servo_off		( modbus_t *servo );
 int is_servo_on		( modbus_t *servo ); //return 1 is it is in SERVO ON, o SERVO OFF, -1 not possible to determine.
@@ -133,9 +140,13 @@ int is_EM2_on( modbus_t *servo )
 	}
 }
 
+/**
+ * Metdo esta incompleto
+ */
 int home( modbus_t *servo)
 {
 	int status;
+	uint16_t r_reg;
 
 	//set home mode
 	status = set_mode(servo, MR_HOME_MODE);
@@ -149,8 +160,29 @@ int home( modbus_t *servo)
 	if( status == -1)
 		return status;
 
-	//loop to wait machine state
+	if( modbus_read_registers( servo, MR_CONTROL_WORD, 1, &r_reg) == -1)
+		return -1;
 
+	//Verifica se finalizou ok ou com erro.
+	while(  ( ( r_reg & MR_HOME_COMPLETED ) == MR_HOME_COMPLETED ) ||
+			( ( r_reg & MR_HOME_ERROR_SPEED) == MR_HOME_ERROR_SPEED ) ||
+			( ( r_reg & MR_HOME_ERROR_SPEED_0) == MR_HOME_ERROR_SPEED_0 ) ||
+			( ( r_reg & MR_HOME_INTERRUPTED) == MR_HOME_INTERRUPTED ) )
+	{
+		status = modbus_read_registers( servo, MR_CONTROL_WORD, 1, &r_reg);
+
+		if( status == -1 )
+			break;
+	}
+
+	if (status == -1) return -1;
+
+	if ( (r_reg & MR_HOME_COMPLETED ) == MR_HOME_COMPLETED )
+		return 1;
+	else if( ((r_reg & MR_HOME_ERROR_SPEED ) == MR_HOME_ERROR_SPEED) ||
+			((r_reg & MR_HOME_ERROR_SPEED_0 ) == MR_HOME_ERROR_SPEED_0) ||
+			((r_reg & MR_HOME_INTERRUPTED ) == MR_HOME_INTERRUPTED )) return 0;
+	return 0;
 }
 
 /**
