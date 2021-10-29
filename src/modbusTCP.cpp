@@ -67,9 +67,9 @@ int main() {
 	modbus_flush( servo2 );
 
 	//set_home_method(servo2, MR_METHOD_35);
-	servo_off( servo2 );
+	servo_on( servo2 );
 
-	set_mode(servo2, MR_HOME_MODE);
+	set_mode(servo2, MR_POINT_TABLE);
 	//this_thread::sleep_for(500ms); //wait half second before continue
 	get_mode(servo2, &mode);
 	this_thread::sleep_for(500ms); //wait half second before continue
@@ -92,6 +92,11 @@ int main() {
 			break;
 		default:
 			break;
+	}
+
+	if( move_point(servo2, 1) )
+	{
+		printf("Movendo...\n");
 	}
 
 	if( modbus_read_registers(servo2, MR_STATUS_WORD , 1 , r_reg) == -1 )
@@ -155,4 +160,22 @@ int main() {
 
 	return 1;
 }
+
+int stat = home(servo2);
+		switch( stat )
+		{
+			case -1:
+				printf("Not communicate\n");
+				break;
+			case 1:
+				printf("Home completed\n");
+				break;
+			case 0:
+				printf("Home not Done\n");
+				break;
+			default:
+				break;
+		}
+
+	set_mode(servo2, MR_POINT_TABLE);
  */

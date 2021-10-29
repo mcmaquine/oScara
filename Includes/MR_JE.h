@@ -5,11 +5,13 @@
 #include <modbus/modbus-tcp.h>
 
 //Indexes (modbus addresses)
+#define MR_TARGET_POINT_TABLE		0x2D60
 #define MR_ERROR_CODE				0x603F
 #define MR_CONTROL_WORD				0x6040
 #define	MR_STATUS_WORD				0x6041
 #define MR_MODE_OF_OPERATION		0x6060
 #define MR_MODES_OPERATION_DISPLAY	0x6061
+#define MR_POSITION_ACTUAL_VALUE	0x6064
 #define MR_HOMING_METHOD			0x6098
 
 //words
@@ -39,9 +41,9 @@
 //homing states
 #define MR_HOME_INTERRUPTED		0x400
 #define MR_ILA					0x800
-#define MR_HOME_COMPLETED		0x1400
-#define MR_HOME_ERROR_SPEED 	0x2000
-#define MR_HOME_ERROR_SPEED_0 	0x2400
+#define MR_HOME_COMPLETED		0x1400 //bit 10 e 12
+#define MR_HOME_ERROR_SPEED 	0x2000 //bit 13
+#define MR_HOME_ERROR_SPEED_0 	0x2400 //bit 10 e 13
 
 int servo_on		( modbus_t *servo );
 int servo_off		( modbus_t *servo );
@@ -54,6 +56,7 @@ int is_EM2_on		( modbus_t *servo ); //check if servo is EM2 activated (emergency
 int home			( modbus_t *servo );
 int set_mode		( modbus_t *servo, char mode);
 int get_mode		( modbus_t *servo, char *mode );
+int position_actual_value( modbus_t *servo);
 
 //Utiliza a função de escrita de multiplos regisradores para escrever 1 somente
 int write_register( modbus_t *servo, int addr, uint16_t data );
@@ -145,44 +148,54 @@ int is_EM2_on( modbus_t *servo )
  */
 int home( modbus_t *servo)
 {
-	int status;
+	int status, homing, retorno;
 	uint16_t r_reg;
 
 	//set home mode
+
 	status = set_mode(servo, MR_HOME_MODE);
 
 	if( status == -1 )
 		return status;
 
 	//issue home
-	status = write_register(servo, MR_CONTROL_WORD, 0x1F);
+	status = modbus_read_registers(servo, MR_CONTROL_WORD, 1, &r_reg);
+	status = write_register(servo, MR_CONTROL_WORD, r_reg & 0x1F);
 
 	if( status == -1)
 		return status;
 
-	if( modbus_read_registers( servo, MR_CONTROL_WORD, 1, &r_reg) == -1)
+	if( modbus_read_registers( servo, MR_STATUS_WORD, 1, &r_reg) == -1)
 		return -1;
 
+	homing = 1;
 	//Verifica se finalizou ok ou com erro.
-	while(  ( ( r_reg & MR_HOME_COMPLETED ) == MR_HOME_COMPLETED ) ||
-			( ( r_reg & MR_HOME_ERROR_SPEED) == MR_HOME_ERROR_SPEED ) ||
-			( ( r_reg & MR_HOME_ERROR_SPEED_0) == MR_HOME_ERROR_SPEED_0 ) ||
-			( ( r_reg & MR_HOME_INTERRUPTED) == MR_HOME_INTERRUPTED ) )
+	while(  homing )
 	{
-		status = modbus_read_registers( servo, MR_CONTROL_WORD, 1, &r_reg);
+		//Verifica se terminou o home
+		if( ( r_reg & MR_HOME_COMPLETED ) == MR_HOME_COMPLETED )
+		{
+			homing = 0;
+			retorno = 1;
+		}
+		else if ( ( ( r_reg & MR_HOME_ERROR_SPEED_0) == MR_HOME_ERROR_SPEED_0 ) ||
+				( ( r_reg & MR_HOME_ERROR_SPEED) == MR_HOME_ERROR_SPEED ) 		||
+				( ( r_reg & MR_HOME_INTERRUPTED) == MR_HOME_INTERRUPTED ) )
+		{
+			homing = 0;
+			retorno = 0; //home nao realizado
+		}
 
+		status = modbus_read_registers( servo, MR_STATUS_WORD, 1, &r_reg);
 		if( status == -1 )
 			break;
+		printf("STATUS WORD %X\n", r_reg);
 	}
-
+	status = modbus_read_registers(servo, MR_CONTROL_WORD, 1, &r_reg);
+	status = write_register(servo, MR_CONTROL_WORD, r_reg & 0xF);
 	if (status == -1) return -1;
 
-	if ( (r_reg & MR_HOME_COMPLETED ) == MR_HOME_COMPLETED )
-		return 1;
-	else if( ((r_reg & MR_HOME_ERROR_SPEED ) == MR_HOME_ERROR_SPEED) ||
-			((r_reg & MR_HOME_ERROR_SPEED_0 ) == MR_HOME_ERROR_SPEED_0) ||
-			((r_reg & MR_HOME_INTERRUPTED ) == MR_HOME_INTERRUPTED )) return 0;
-	return 0;
+	return retorno;
 }
 
 /**
@@ -229,6 +242,43 @@ int write_register( modbus_t *servo, int addr, uint16_t data)
 	status = modbus_write_registers(servo, addr, 1, &data );
 
 	return status;
+}
+
+int position_actual_value( modbus_t *servo )
+{
+	uint16_t r_reg[3];
+	int stat, position;
+
+	stat = modbus_read_registers(servo, MR_POSITION_ACTUAL_VALUE, 2, r_reg);
+	if( stat == -1) return -1;
+
+	position = r_reg[1];
+	position = position << 16;
+	position = position | r_reg[0];
+	return position;
+}
+
+int move_point( modbus_t *servo, uint16_t point)
+{
+	uint16_t r_reg;
+
+	if( is_servo_on(servo) != 1 ) return 0;
+
+	int stat = modbus_read_registers(servo, MR_CONTROL_WORD, 1, &r_reg);
+
+	if( stat == -1 ) return -1;
+
+	stat = write_register(servo, MR_CONTROL_WORD, r_reg & 0xFFEF);
+
+	stat = write_register(servo, MR_POINT_TABLE, point);
+
+	if( stat == -1) return -1;
+
+	stat = write_register(servo, MR_CONTROL_WORD, 0x10 | r_reg);
+
+	if( stat == -1) return -1;
+
+	return 1;
 }
 
 #endif
