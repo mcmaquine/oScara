@@ -51,6 +51,20 @@
 #define	BIT_2	0x0004
 #define BIT_3	0x0008
 #define BIT_5	0x0010
+#define BIT_6   0x0040
+#define BIT_7   0x0080
+#define BIT_8   0x0100
+#define BIT_9   0x0200
+#define BIT_10  0x0400
+#define BIT_11  0x0800
+#define BIT_12  0x1000
+#define BIT_13  0x2000
+#define BIT_14  0x4000
+#define BIT_15  0x8000
+#define NYBLE_0   0x000F
+#define NYBLE_1   0x00F0
+#define NYBLE_2   0x0F00
+#define NYBLE_3   0xF000
 
 int servo_on		( modbus_t *servo );
 int servo_off		( modbus_t *servo );
@@ -64,6 +78,9 @@ int home			( modbus_t *servo );
 int set_mode		( modbus_t *servo, char mode);
 int get_mode		( modbus_t *servo, char *mode );
 int position_actual_value( modbus_t *servo);
+
+void setBit(uint16_t *word, uint16_t bits);
+void resetBit(uint16_t *word, uint16_t bits);
 
 //Utiliza a função de escrita de multiplos regisradores para escrever 1 somente
 int write_register( modbus_t *servo, int addr, uint16_t data );
@@ -286,6 +303,18 @@ int move_point( modbus_t *servo, uint16_t point)
 	if( stat == -1) return -1;
 
 	return 1;
+}
+
+void setBit(uint16_t *word, uint16_t bits)
+{
+    *word = *word | bits;
+}
+
+void resetBit( uint16_t *word, uint16_t bits )
+{
+    uint16_t notBits = ~bits;
+    
+    *word = *word & notBits;
 }
 
 #endif
