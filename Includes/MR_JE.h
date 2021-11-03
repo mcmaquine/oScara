@@ -45,6 +45,13 @@
 #define MR_HOME_ERROR_SPEED 	0x2000 //bit 13
 #define MR_HOME_ERROR_SPEED_0 	0x2400 //bit 10 e 13
 
+//bits definition
+#define BIT_0	0x0001
+#define BIT_1	0x0002
+#define	BIT_2	0x0004
+#define BIT_3	0x0008
+#define BIT_5	0x0010
+
 int servo_on		( modbus_t *servo );
 int servo_off		( modbus_t *servo );
 int is_servo_on		( modbus_t *servo ); //return 1 is it is in SERVO ON, o SERVO OFF, -1 not possible to determine.
