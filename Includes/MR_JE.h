@@ -304,6 +304,7 @@ int move_point( modbus_t *servo, uint16_t point)
 
 	return 1;
 }
+
 /**
  * Word which bits will be set. For more than one bit use bitwise | (OR), Ex. BIT_0 | BIT_1 | BIT_2 to set bits from 0 to 2.
  * @param *word word whom birs will be set
@@ -316,9 +317,9 @@ void setBit(uint16_t *word, uint16_t bits)
 }
 
 /**
- * Word which bits will be set. For more than one bit use bitwise | (OR), Ex. BIT_0 | BIT_1 | BIT_2 to set bits from 0 to 2.
- * @param *word word whom birs will be set
- * @param bits	bits to set in word
+ * Word which bits will be reset. For more than one bit use bitwise | (OR), Ex. BIT_0 | BIT_1 | BIT_2 to set bits from 0 to 2.
+ * @param *word word whom birs will be reset
+ * @param bits	bits to reset in word
  */
 void resetBit( uint16_t *word, uint16_t bits )
 {
