@@ -1,5 +1,5 @@
-# Todos os arquivos nas pasts
-Debug/
+# Todos os arquivos nas pastas
+Debug/*
 # Prerequisites
 *.d
 
