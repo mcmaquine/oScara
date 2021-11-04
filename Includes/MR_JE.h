@@ -307,8 +307,9 @@ int move_point( modbus_t *servo, uint16_t point)
 	stat = write_register(servo, MR_TARGET_POINT_TABLE, point); //write position table number
 	if( stat == -1) return -1;	//if not possible to write, return -1
 
-	setBit(&r_reg, BIT_4 );		//st bit 4
+	setBit(&r_reg, BIT_4 );		//set bit 4
 	stat = write_register(servo, MR_CONTROL_WORD, r_reg); //write word with reseted bit 4
+	printf("ControlWord 0x%X\n", r_reg );
 
 	if( stat == -1) return -1;
 

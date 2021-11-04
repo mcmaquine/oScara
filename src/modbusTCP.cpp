@@ -53,25 +53,33 @@ int main() {
 	servo2 = modbus_new_tcp("10.8.0.202", 502);
 
 	//Verifica se o objeto modbus foi criado
-	if (servo2 == NULL) {
+	if (servo1 == NULL && servo2 == NULL) {
 	    printf("Unable to allocate libmodbus context\n");
 	    return -1;
 	}
 
 	//Verifica se a comunicacao foi realizada
+	if( modbus_connect( servo1 ) == -1 )
+	{
+		printf("Connection failed %s\n", modbus_strerror(errno));
+		return -1;
+	}
 	if( modbus_connect( servo2 ) == -1 )
 	{
 		printf("Connection failed %s\n", modbus_strerror(errno));
 		return -1;
 	}
-	modbus_flush( servo2 );
+	//modbus_flush( servo1 );
 
-	//set_home_method(servo2, MR_METHOD_35);
+	//set_home_method(servo1, MR_METHOD_35);
+	servo_on( servo1 );
 	servo_on( servo2 );
 
+	set_mode(servo1, MR_POINT_TABLE);
 	set_mode(servo2, MR_POINT_TABLE);
 	//this_thread::sleep_for(500ms); //wait half second before continue
-	get_mode(servo2, &mode);
+	get_mode(servo1, &mode);
+	//home(servo1);
 	this_thread::sleep_for(500ms); //wait half second before continue
 
 	switch (mode) {
@@ -93,18 +101,28 @@ int main() {
 		default:
 			break;
 	}
-
-	if( move_point(servo2, 1) )
+	int point = 2;
+	if( move_point(servo1, point) )
 	{
-		printf("Movendo...\n");
+		printf("Movendo servo 1...\n");
 	}
+	if( move_point(servo2, point) )
+	{
+		printf("Movendo servo 2...\n");
+	}
+	modbus_read_registers(servo1, MR_CONTROL_WORD, 1, r_reg);
+	//resetBit(&r_reg[0], BIT_7 );
+	//write_register(servo2, MR_CONTROL_WORD, r_reg[0]);
 
-	if( modbus_read_registers(servo2, MR_STATUS_WORD , 1 , r_reg) == -1 )
+	printf("ControlWord 0x%X\n", r_reg[0]);
+
+	if( modbus_read_registers(servo1, MR_STATUS_WORD , 1 , r_reg) == -1 )
 		printf("Note read %s", modbus_strerror(errno) );
 	else
 		printf("Inputs INT: %d Hex: 0x%X\n", r_reg[0], r_reg[0]);
 
 	modbus_close( servo2 );
+	modbus_close( servo1 );
 	modbus_free( servo2 );
 	modbus_free( servo1 );
 
