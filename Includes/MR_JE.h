@@ -50,7 +50,8 @@
 #define BIT_1	0x0002
 #define	BIT_2	0x0004
 #define BIT_3	0x0008
-#define BIT_5	0x0010
+#define BIT_4	0x0010
+#define BIT_5	0x0020
 #define BIT_6   0x0040
 #define BIT_7   0x0080
 #define BIT_8   0x0100
@@ -184,7 +185,10 @@ int home( modbus_t *servo)
 
 	//issue home
 	status = modbus_read_registers(servo, MR_CONTROL_WORD, 1, &r_reg);
-	status = write_register(servo, MR_CONTROL_WORD, r_reg & 0x1F);
+
+	setBit(&r_reg, BIT_4 ); //bir 4 start homing
+
+	status = write_register(servo, MR_CONTROL_WORD, r_reg );
 
 	if( status == -1)
 		return status;
@@ -216,7 +220,8 @@ int home( modbus_t *servo)
 		printf("STATUS WORD %X\n", r_reg);
 	}
 	status = modbus_read_registers(servo, MR_CONTROL_WORD, 1, &r_reg);
-	status = write_register(servo, MR_CONTROL_WORD, r_reg & 0xF);
+	resetBit(&r_reg, BIT_4); //reset bit 4
+	status = write_register(servo, MR_CONTROL_WORD, r_reg );
 	if (status == -1) return -1;
 
 	return retorno;
@@ -268,6 +273,10 @@ int write_register( modbus_t *servo, int addr, uint16_t data)
 	return status;
 }
 
+/**
+ * Return the actula servo position
+ * @param modbus_t	Communication struct
+ */
 int position_actual_value( modbus_t *servo )
 {
 	uint16_t r_reg[3];
@@ -290,15 +299,16 @@ int move_point( modbus_t *servo, uint16_t point)
 
 	int stat = modbus_read_registers(servo, MR_CONTROL_WORD, 1, &r_reg);
 
-	if( stat == -1 ) return -1;
+	if( stat == -1 ) return -1; //if not possible to read, return -1
 
-	stat = write_register(servo, MR_CONTROL_WORD, r_reg & 0xFFEF);
+	resetBit( &r_reg, BIT_4 ); //reset bit 4
+	stat = write_register(servo, MR_CONTROL_WORD, r_reg ); //write word with reseted bit 4
 
-	stat = write_register(servo, MR_POINT_TABLE, point);
+	stat = write_register(servo, MR_TARGET_POINT_TABLE, point); //write position table number
+	if( stat == -1) return -1;	//if not possible to write, return -1
 
-	if( stat == -1) return -1;
-
-	stat = write_register(servo, MR_CONTROL_WORD, 0x10 | r_reg);
+	setBit(&r_reg, BIT_4 );		//st bit 4
+	stat = write_register(servo, MR_CONTROL_WORD, r_reg); //write word with reseted bit 4
 
 	if( stat == -1) return -1;
 
