@@ -16,9 +16,8 @@
 using namespace std;
 
 modbus_t *servo1, *servo2;
-uint8_t bits[16];//read buffer
-uint8_t coil[16];//write buffer
-uint16_t w_reg[4], r_reg[4]; //write register and read register respectivelly
+uint16_t w_reg[16], r_reg[16]; //write register and read register respectivelly
+pt teste;
 
 uint16_t convert_raw_data_to_word( int nb, uint8_t *bits)
 {
@@ -61,22 +60,23 @@ int main() {
 	//Verifica se a comunicacao foi realizada
 	if( modbus_connect( servo1 ) == -1 )
 	{
-		printf("Connection failed %s\n", modbus_strerror(errno));
+		printf( "Connection failed %s\n", modbus_strerror(errno) );
 		return -1;
 	}
 	if( modbus_connect( servo2 ) == -1 )
 	{
-		printf("Connection failed %s\n", modbus_strerror(errno));
+		printf( "Connection failed %s\n", modbus_strerror(errno) );
 		return -1;
 	}
-	//modbus_flush( servo1 );
+	modbus_flush( servo1 );
+	modbus_flush( servo2 );
 
 	//set_home_method(servo1, MR_METHOD_35);
-	servo_on( servo1 );
-	servo_on( servo2 );
+	servo_off( servo1 );
+	servo_off( servo2 );
 
-	set_mode(servo1, MR_POINT_TABLE);
-	set_mode(servo2, MR_POINT_TABLE);
+	set_mode(servo1, MR_POINT_TABLE_MODE);
+	set_mode(servo2, MR_POINT_TABLE_MODE);
 	//this_thread::sleep_for(500ms); //wait half second before continue
 	get_mode(servo1, &mode);
 	//home(servo1);
@@ -86,13 +86,13 @@ int main() {
 		case MR_INDEXER_MODE:
 			printf("Mode: Indexer mode\n");
 			break;
-		case MR_POINT_TABLE:
+		case MR_POINT_TABLE_MODE:
 			printf("Mode: Point table mode (pt)\n");
 			break;
 		case MR_JOG_MODE:
 			printf("Mode: Jog mode\n");
 			break;
-		case MR_PROFILE_POSTION:
+		case MR_PROFILE_POSTION_MODE:
 			printf("Mode: Profile position mode\n");
 			break;
 		case MR_HOME_MODE:
@@ -101,12 +101,12 @@ int main() {
 		default:
 			break;
 	}
-	int point = 2;
-	if( move_point(servo1, point) )
+	int point = 3;
+	if( pt_move(servo1, point) == 1)
 	{
 		printf("Movendo servo 1...\n");
 	}
-	if( move_point(servo2, point) )
+	if( pt_move(servo2, point) == 1 )
 	{
 		printf("Movendo servo 2...\n");
 	}
@@ -120,6 +120,16 @@ int main() {
 		printf("Note read %s", modbus_strerror(errno) );
 	else
 		printf("Inputs INT: %d Hex: 0x%X\n", r_reg[0], r_reg[0]);
+
+	if( get_data_from_pt(servo2, 2, &teste) == -1)
+	{
+		printf("No read\n");
+	}
+	else
+	{
+		//print some data
+		printf("%d\n", teste.point_data);
+	}
 
 	modbus_close( servo2 );
 	modbus_close( servo1 );
@@ -177,7 +187,6 @@ int main() {
 	}while( bits[0] );
 
 	return 1;
-}
 
 int stat = home(servo2);
 		switch( stat )

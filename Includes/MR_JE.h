@@ -4,7 +4,23 @@
 
 #include <modbus/modbus-tcp.h>
 
+/*
+ * see MR-JE-_C Network manual p. 84 (7 - 5)
+ */
+typedef struct pt_data
+{
+	uint16_t n_entries;	//sub index 0 Number of entries
+	int point_data;		//sub index 1 Position data
+	int speed;			//sub index 2
+	int acceleration;	//sub index 3
+	int deceleration;	//sub index 4
+	int dwell;			//sub index 5
+	int aux;			//sub index 6
+	int mcode;			//sub index 7
+}pt;
+
 //Indexes (modbus addresses)
+#define MR_POINT_TABLE_OFFSET		0x2801	//point 1 address
 #define MR_TARGET_POINT_TABLE		0x2D60
 #define MR_ERROR_CODE				0x603F
 #define MR_CONTROL_WORD				0x6040
@@ -26,17 +42,17 @@
 #define MR_METHOD_37	37
 
 //modes of operation
-#define MR_NO_MODE			0
-#define MR_PROFILE_POSTION	1
-#define	MR_PROFILE_VELOCITY 2
-#define MR_PROFILE_TORQUE	3
-#define MR_HOME_MODE		6
-#define	MR_POSITION_CONTROL -20
-#define MR_SPEED_CONTROL	-21
-#define	MR_TORQUE_CONTROL	-22
-#define MR_JOG_MODE			-100
-#define MR_POINT_TABLE		-101
-#define MR_INDEXER_MODE		-103
+#define MR_NO_MODE					0
+#define MR_PROFILE_POSTION_MODE		1
+#define	MR_PROFILE_VELOCITY_MODE	2
+#define MR_PROFILE_TORQUE_MODE		3
+#define MR_HOME_MODE				6
+#define	MR_POSITION_CONTROL_MODE	-20
+#define MR_SPEED_CONTROL_MODE		-21
+#define	MR_TORQUE_CONTROL_MODE		-22
+#define MR_JOG_MODE					-100
+#define MR_POINT_TABLE_MODE			-101
+#define MR_INDEXER_MODE				-103
 
 //homing states
 #define MR_HOME_INTERRUPTED		0x400
@@ -79,6 +95,9 @@ int home			( modbus_t *servo );
 int set_mode		( modbus_t *servo, char mode);
 int get_mode		( modbus_t *servo, char *mode );
 int position_actual_value( modbus_t *servo);
+int pt_move			( modbus_t *servo, uint16_t point );
+int get_data_from_pt( modbus_t *servo, uint16_t point, pt *data);
+int set_pt_data		( modbus_t *servo, uint16_t point, pt *data);
 
 void setBit(uint16_t *word, uint16_t bits);
 void resetBit(uint16_t *word, uint16_t bits);
@@ -88,12 +107,18 @@ int write_register( modbus_t *servo, int addr, uint16_t data );
 
 int servo_on( modbus_t *servo )
 {
-	return write_register(servo, MR_CONTROL_WORD, 0x0F);
+	uint16_t w_reg;
+
+	setBit(&w_reg, NYBLE_0 );
+	return write_register(servo, MR_CONTROL_WORD, w_reg);
 }
 
 int servo_off( modbus_t *servo )
 {
-	return write_register(servo, MR_CONTROL_WORD, 0x00);
+	uint16_t w_reg;
+
+	resetBit(&w_reg, NYBLE_0);
+	return write_register(servo, MR_CONTROL_WORD, w_reg);
 }
 
 int is_servo_on( modbus_t *servo )
@@ -169,7 +194,7 @@ int is_EM2_on( modbus_t *servo )
 }
 
 /**
- * Metdo esta incompleto
+ * Realiza home do servo
  */
 int home( modbus_t *servo)
 {
@@ -243,6 +268,9 @@ int set_mode( modbus_t *servo, char mode)
 	return status;
 }
 
+/*
+ * Get servo current mode
+ */
 int get_mode( modbus_t *servo, char *mode)
 {
 	int status;
@@ -290,12 +318,23 @@ int position_actual_value( modbus_t *servo )
 	position = position | r_reg[0];
 	return position;
 }
-
-int move_point( modbus_t *servo, uint16_t point)
+/*
+ * Do a move registered on a Point_Table
+ */
+int pt_move( modbus_t *servo, uint16_t point)
 {
 	uint16_t r_reg;
+	char mode;
 
+	//point can not be zero
+	if( point == 0 ) return 0;
+
+	//check if servo is Enable
 	if( is_servo_on(servo) != 1 ) return 0;
+
+	//check if servo is point table mode
+	if( get_mode(servo, &mode) == -1) return -1;
+	if( mode != MR_POINT_TABLE_MODE ) return 0;
 
 	int stat = modbus_read_registers(servo, MR_CONTROL_WORD, 1, &r_reg);
 
@@ -339,6 +378,52 @@ void resetBit( uint16_t *word, uint16_t bits )
     
     //bitwise AND to reset bits
     *word = *word & notBits;
+}
+
+/*
+ * Get data from a point table previously recorded
+ */
+int get_data_from_pt( modbus_t *servo, uint16_t point, pt *data)
+{
+	const int size = 15;
+	uint16_t r_reg[size];
+
+	if( point < 1 || point > 255 ) return 0; // only numbers between 1 and 255 (inclusive)
+
+	modbus_read_registers(servo, MR_POINT_TABLE_OFFSET + point - 1, size, r_reg);
+
+	//printf("Data from Point Table 0x%X\n", MR_POINT_TABLE_OFFSET + point - 1);
+	data->n_entries = r_reg[0];
+
+	data->point_data = r_reg[2];
+	data->point_data = data->point_data << 16;
+	data->point_data = data->point_data | r_reg[1];
+
+	data->speed = r_reg[4];
+	data->speed = data->speed << 16;
+	data->speed = data->speed | r_reg[3];
+
+	data->acceleration = r_reg[6];
+	data->acceleration = data->acceleration << 16;
+	data->acceleration = data->acceleration | r_reg[5];
+
+	data->deceleration = r_reg[8];
+	data->deceleration = data->deceleration << 16;
+	data->deceleration = data->deceleration | r_reg[7];
+
+	data->dwell = r_reg[10];
+	data->dwell = data->dwell << 16;
+	data->dwell = data->dwell | r_reg[9];
+
+	data->aux = r_reg[12];
+	data->aux = data->aux << 16;
+	data->aux = data->aux | r_reg[11];
+
+	data->mcode = r_reg[14];
+	data->mcode = data->mcode << 16;
+	data->mcode = data->mcode | r_reg[13];
+
+	return 1;
 }
 
 #endif
