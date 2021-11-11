@@ -1,5 +1,6 @@
 # Todos os arquivos nas pastas
-Debug/*
+Debug/
+
 # Prerequisites
 *.d
 

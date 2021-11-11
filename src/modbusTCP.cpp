@@ -17,7 +17,13 @@ using namespace std;
 
 modbus_t *servo1, *servo2;
 uint16_t w_reg[16], r_reg[16]; //write register and read register respectivelly
-pt teste;
+
+int connectAll( modbus_t *servo1, modbus_t *servo2 );
+int enableAll( modbus_t *servo1, modbus_t *servo2 );
+int setMode( modbus_t *servo1, modbus_t *servo2, char mode);
+int offAll( modbus_t *servo1, modbus_t *servo2 );
+int positioning_profile( modbus_t *servo1, modbus_t *servo2 );
+int positioninf_pt( modbus_t *servo1, modbus_t *servo2 );
 
 uint16_t convert_raw_data_to_word( int nb, uint8_t *bits)
 {
@@ -43,14 +49,54 @@ int convert_word_to_raw_data(int nb, uint16_t data, uint8_t *bits)
 	return 1;
 }
 
+
 int main() {
 
 	thread read;
 	char mode;
+	pt *teste;
 
 	servo1 = modbus_new_tcp("10.8.0.201", 502);
 	servo2 = modbus_new_tcp("10.8.0.202", 502);
 
+	connectAll(servo1, servo2);
+	enableAll(servo1, servo2);
+	setMode(servo1, servo2, MR_POSITION_CONTROL_MODE);
+
+	modbus_read_registers(servo1, MR_CONTROL_WORD, 1, r_reg);
+	//resetBit(&r_reg[0], BIT_7 );
+	//write_register(servo2, MR_CONTROL_WORD, r_reg[0]);
+
+	printf("ControlWord 0x%X\n", r_reg[0]);
+
+	if( modbus_read_registers(servo1, MR_STATUS_WORD , 1 , r_reg) == -1 )
+		printf("Note read %s", modbus_strerror(errno) );
+	else
+		printf("Inputs INT: %d Hex: 0x%X\n", r_reg[0], r_reg[0]);
+
+	if( get_data_from_pt(servo2, 2, teste) == -1)
+	{
+		printf("No read\n");
+	}
+	else
+	{
+		//print some data
+		printf("%d\n", teste->point_data);
+	}
+
+	modbus_close( servo2 );
+	modbus_close( servo1 );
+	modbus_free( servo2 );
+	modbus_free( servo1 );
+	free(teste);
+
+	//this_thread::sleep_for( chrono::milliseconds( 980 ) );
+	cout	<<	"Exit"	<<	endl;
+	return 0;
+}
+
+int connectAll( modbus_t *sevo1, modbus_t *servo2 )
+{
 	//Verifica se o objeto modbus foi criado
 	if (servo1 == NULL && servo2 == NULL) {
 	    printf("Unable to allocate libmodbus context\n");
@@ -71,10 +117,28 @@ int main() {
 	modbus_flush( servo1 );
 	modbus_flush( servo2 );
 
+	return 1;
+}
+
+int enableAll( modbus_t *servo1, modbus_t *servo2 )
+{
 	//set_home_method(servo1, MR_METHOD_35);
+	servo_on( servo1 );
+	servo_on( servo2 );
+
+	return 1;
+}
+
+int offAll( modbus_t *servo1, modbus_t *servo2 )
+{
 	servo_off( servo1 );
 	servo_off( servo2 );
 
+	return 1;
+}
+
+int setMode( modbus_t *servo1, modbus_t *servo2, char mode)
+{
 	set_mode(servo1, MR_POINT_TABLE_MODE);
 	set_mode(servo2, MR_POINT_TABLE_MODE);
 	//this_thread::sleep_for(500ms); //wait half second before continue
@@ -92,7 +156,7 @@ int main() {
 		case MR_JOG_MODE:
 			printf("Mode: Jog mode\n");
 			break;
-		case MR_PROFILE_POSTION_MODE:
+		case MR_PROFILE_POSITION_MODE:
 			printf("Mode: Profile position mode\n");
 			break;
 		case MR_HOME_MODE:
@@ -101,7 +165,12 @@ int main() {
 		default:
 			break;
 	}
-	int point = 3;
+
+	return 1;
+}
+
+int positioning_pt(modbus_t *servo1, modbus_t *servo2, int point )
+{
 	if( pt_move(servo1, point) == 1)
 	{
 		printf("Movendo servo 1...\n");
@@ -110,36 +179,10 @@ int main() {
 	{
 		printf("Movendo servo 2...\n");
 	}
-	modbus_read_registers(servo1, MR_CONTROL_WORD, 1, r_reg);
-	//resetBit(&r_reg[0], BIT_7 );
-	//write_register(servo2, MR_CONTROL_WORD, r_reg[0]);
 
-	printf("ControlWord 0x%X\n", r_reg[0]);
-
-	if( modbus_read_registers(servo1, MR_STATUS_WORD , 1 , r_reg) == -1 )
-		printf("Note read %s", modbus_strerror(errno) );
-	else
-		printf("Inputs INT: %d Hex: 0x%X\n", r_reg[0], r_reg[0]);
-
-	if( get_data_from_pt(servo2, 2, &teste) == -1)
-	{
-		printf("No read\n");
-	}
-	else
-	{
-		//print some data
-		printf("%d\n", teste.point_data);
-	}
-
-	modbus_close( servo2 );
-	modbus_close( servo1 );
-	modbus_free( servo2 );
-	modbus_free( servo1 );
-
-	//this_thread::sleep_for( chrono::milliseconds( 980 ) );
-	cout	<<	"Exit"	<<	endl;
-	return 0;
+	return 1;
 }
+
 /**
  * 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
  * cout << "Modbus Test" << endl; // prints "Hello Modbus"
