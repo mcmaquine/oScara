@@ -19,6 +19,27 @@ typedef struct pt_data
 	int mcode;			//sub index 7
 }pt;
 
+typedef struct pp_data //profile mode positioning data
+{
+	int target_position;
+	uint32_t speed;
+	uint32_t accel;
+	uint32_t decel;
+	int16_t profile = -1; //only mode supported on MR-JE-20C
+}pp;
+
+typedef struct pv_data //profile mode velocity data
+{
+	int16_t torque;
+	uint16_t slope;
+	int16_t profile;
+}pv;
+
+typedef struct tq_data //profile mode torque data
+{
+
+}tq;
+
 //Indexes (modbus addresses)
 #define MR_POINT_TABLE_OFFSET		0x2801	//point 1 address
 #define MR_TARGET_POINT_TABLE		0x2D60
@@ -98,6 +119,8 @@ int position_actual_value( modbus_t *servo);
 int pt_move			( modbus_t *servo, uint16_t point );
 int get_data_from_pt( modbus_t *servo, uint16_t point, pt *data);
 int set_pt_data		( modbus_t *servo, uint16_t point, pt *data);
+int set_pp_data		( modbus_t *servo, pt *data);
+
 
 void setBit(uint16_t *word, uint16_t bits);
 void resetBit(uint16_t *word, uint16_t bits);

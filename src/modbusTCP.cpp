@@ -23,7 +23,7 @@ int enableAll( modbus_t *servo1, modbus_t *servo2 );
 int setMode( modbus_t *servo1, modbus_t *servo2, char mode);
 int offAll( modbus_t *servo1, modbus_t *servo2 );
 int positioning_profile( modbus_t *servo1, modbus_t *servo2 );
-int positioninf_pt( modbus_t *servo1, modbus_t *servo2 );
+int positioning_pt( modbus_t *servo1, modbus_t *servo2, int point );
 
 uint16_t convert_raw_data_to_word( int nb, uint8_t *bits)
 {
