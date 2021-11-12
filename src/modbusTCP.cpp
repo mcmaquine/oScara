@@ -53,15 +53,14 @@ int convert_word_to_raw_data(int nb, uint16_t data, uint8_t *bits)
 int main() {
 
 	thread read;
-	char mode;
 	pt *teste;
 
 	servo1 = modbus_new_tcp("10.8.0.201", 502);
 	servo2 = modbus_new_tcp("10.8.0.202", 502);
 
 	connectAll(servo1, servo2);
-	enableAll(servo1, servo2);
-	setMode(servo1, servo2, MR_POSITION_CONTROL_MODE);
+	offAll(servo1, servo2);
+	setMode(servo1, servo2, MR_PROFILE_POSITION_MODE);
 
 	modbus_read_registers(servo1, MR_CONTROL_WORD, 1, r_reg);
 	//resetBit(&r_reg[0], BIT_7 );
@@ -72,16 +71,11 @@ int main() {
 	if( modbus_read_registers(servo1, MR_STATUS_WORD , 1 , r_reg) == -1 )
 		printf("Note read %s", modbus_strerror(errno) );
 	else
-		printf("Inputs INT: %d Hex: 0x%X\n", r_reg[0], r_reg[0]);
+		printf("Inputs INT: %d ex: 0x%X\n", r_reg[0], r_reg[0]);
 
-	if( get_data_from_pt(servo2, 2, teste) == -1)
+	if( get_pt_data(servo2, 3, &teste) == -1)
 	{
 		printf("No read\n");
-	}
-	else
-	{
-		//print some data
-		printf("%d\n", teste->point_data);
 	}
 
 	modbus_close( servo2 );

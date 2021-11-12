@@ -64,7 +64,7 @@ typedef struct tq_data //profile mode torque data
 
 //modes of operation
 #define MR_NO_MODE					0
-#define MR_PROFILE_POSITION_MODE		1
+#define MR_PROFILE_POSITION_MODE	1
 #define	MR_PROFILE_VELOCITY_MODE	2
 #define MR_PROFILE_TORQUE_MODE		3
 #define MR_HOME_MODE				6
@@ -117,7 +117,7 @@ int set_mode		( modbus_t *servo, char mode);
 int get_mode		( modbus_t *servo, char *mode );
 int position_actual_value( modbus_t *servo);
 int pt_move			( modbus_t *servo, uint16_t point );
-int get_data_from_pt( modbus_t *servo, uint16_t point, pt *data);
+int get_pt_data		( modbus_t *servo, uint16_t point, pt *data);
 int set_pt_data		( modbus_t *servo, uint16_t point, pt *data);
 int set_pp_data		( modbus_t *servo, pt *data);
 
@@ -404,54 +404,85 @@ void resetBit( uint16_t *word, uint16_t bits )
 }
 
 /*
- * Get data from a point table previously recorded
+ * Get data from a point table previously recorded alloc a pointer pt
  */
-int get_data_from_pt( modbus_t *servo, uint16_t point, pt *data)
+int get_pt_data( modbus_t *servo, uint16_t point, pt **data)
 {
 	const int size = 15;
 	int status;
 	uint16_t r_reg[size];
-	pt *point_data;
 
 	if( point < 1 || point > 255 ) return 0; // only numbers between 1 and 255 (inclusive)
 
 	status = modbus_read_registers(servo, MR_POINT_TABLE_OFFSET + point - 1, size, r_reg);
 	if( status == -1 ) return -1;
 
-	point_data = malloc( sizeof( pt ));
+	*data = (pt *)malloc( sizeof (pt) );
 
-	//printf("Data from Point Table 0x%X\n", MR_POINT_TABLE_OFFSET + point - 1);
-	point_data->n_entries = r_reg[0];
+	(*data)->n_entries = r_reg[0];
 
-	point_data->point_data = r_reg[2];
-	point_data->point_data = point_data->point_data << 16;
-	point_data->point_data = point_data->point_data | r_reg[1];
+	(*data)->point_data = r_reg[2]; //most sgnificant word
+	(*data)->point_data = (*data)->point_data << 16;
+	(*data)->point_data = (*data)->point_data | r_reg[1]; //least significant word
 
-	point_data->speed = r_reg[4];
-	point_data->speed = point_data->speed << 16;
-	point_data->speed = point_data->speed | r_reg[3];
+	(*data)->speed = r_reg[4];
+	(*data)->speed = (*data)->speed << 16;
+	(*data)->speed = (*data)->speed | r_reg[3];
 
-	point_data->acceleration = r_reg[6];
-	point_data->acceleration = point_data->acceleration << 16;
-	point_data->acceleration = point_data->acceleration | r_reg[5];
+	(*data)->acceleration = r_reg[6];
+	(*data)->acceleration = (*data)->acceleration << 16;
+	(*data)->acceleration = (*data)->acceleration | r_reg[5];
 
-	point_data->deceleration = r_reg[8];
-	point_data->deceleration = point_data->deceleration << 16;
-	point_data->deceleration = point_data->deceleration | r_reg[7];
+	(*data)->deceleration = r_reg[8];
+	(*data)->deceleration = (*data)->deceleration << 16;
+	(*data)->deceleration = (*data)->deceleration | r_reg[7];
 
-	point_data->dwell = r_reg[10];
-	point_data->dwell = point_data->dwell << 16;
-	point_data->dwell = point_data->dwell | r_reg[9];
+	(*data)->dwell = r_reg[10];
+	(*data)->dwell = (*data)->dwell << 16;
+	(*data)->dwell = (*data)->dwell | r_reg[9];
 
-	point_data->aux = r_reg[12];
-	point_data->aux = point_data->aux << 16;
-	point_data->aux = point_data->aux | r_reg[11];
+	(*data)->aux = r_reg[12];
+	(*data)->aux = (*data)->aux << 16;
+	(*data)->aux = (*data)->aux | r_reg[11];
 
-	point_data->mcode = r_reg[14];
-	point_data->mcode = point_data->mcode << 16;
-	point_data->mcode = point_data->mcode | r_reg[13];
+	(*data)->mcode = r_reg[14];
+	(*data)->mcode = (*data)->mcode << 16;
+	(*data)->mcode = (*data)->mcode | r_reg[13];
 
-	data = point_data;
+	return 1;
+}
+
+int set_pt_data( modbus_t *servo, uint16_t point, pt *data )
+{
+	const int size = 15;
+	int status;
+	uint16_t reg[size];
+
+	reg[1] = data->point_data & 0x0000FFFF;
+	reg[2] = data->point_data >> 16;
+
+	reg[3] = data->speed & 0x0000FFFF;
+	reg[4] = data->speed >> 16;
+
+	reg[5] = data->acceleration & 0x0000FFFF;
+	reg[6] = data->acceleration >> 16;
+
+	reg[7] = data->deceleration & 0x0000FFFF;
+	reg[8] = data->deceleration >> 16;
+
+	reg[9] = data->dwell & 0x0000FFFF;
+	reg[10]= data->dwell >> 16;
+
+	reg[11]= data->aux & 0x0000FFFF;
+	reg[12]= data->aux >> 16;
+
+	reg[13]= data->mcode & 0x0000FFFF;
+	reg[14]= data->mcode >> 16;
+
+	status = modbus_write_registers(servo, MR_POINT_TABLE_OFFSET + point - 1, size, reg);
+
+	if( status == -1) return status;
+
 	return 1;
 }
 
