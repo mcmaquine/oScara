@@ -7,9 +7,12 @@
 //============================================================================
 
 #include <iostream>
+#include <stdlib.h>
 #include <modbus/modbus-tcp.h>
 #include <MR_JE.h>
 #include <thread>
+#include <readline/readline.h>
+#include <readline/history.h>
 #include "robot.h"
 #include "cinematics.h"
 
@@ -17,6 +20,8 @@ using namespace std;
 
 modbus_t *servo1, *servo2;
 uint16_t w_reg[16], r_reg[16]; //write register and read register respectivelly
+
+int parse (char *comm);
 
 int connectAll( modbus_t *servo1, modbus_t *servo2 );
 int enableAll( modbus_t *servo1, modbus_t *servo2 );
@@ -54,11 +59,22 @@ int main() {
 
 	thread read;
 	pt *teste;
+	int ps;
+	char *comm;
 
 	servo1 = modbus_new_tcp("10.8.0.201", 502);
 	servo2 = modbus_new_tcp("10.8.0.202", 502);
 
-	connectAll(servo1, servo2);
+	do {
+		do {
+			comm = readline( "oScara> " );
+		} while ( comm == NULL );
+
+		//add_history( comm );
+		ps = parse( comm );
+		free( comm );
+	} while ( ps != 0 );
+
 	offAll(servo1, servo2);
 	setMode(servo1, servo2, MR_PROFILE_POSITION_MODE);
 
@@ -87,6 +103,33 @@ int main() {
 	//this_thread::sleep_for( chrono::milliseconds( 980 ) );
 	cout	<<	"Exit"	<<	endl;
 	return 0;
+}
+
+int parse( char *comm)
+{
+	int status;
+
+	if(!strcmp(comm, "exit"))
+	{
+		printf("Exit\n");
+		return 0;
+	}
+	else if( !strcmp( comm, "on"))
+	{
+		printf("Servo On\n");
+		return 1;
+	}
+	else if( !strcmp( comm, "connect"))
+	{
+		printf("Connect servos");
+		status = connectAll(servo1, servo2);
+		return 1;
+	}
+	else
+	{
+		printf("Not a command\n");
+		return 1;
+	}
 }
 
 int connectAll( modbus_t *sevo1, modbus_t *servo2 )

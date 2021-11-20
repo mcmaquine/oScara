@@ -75,6 +75,8 @@
                                     									
                                     <listOptionValue builtIn="false" value="modbus"/>
                                     									
+                                    <listOptionValue builtIn="false" value="readline"/>
+                                    									
                                     <listOptionValue builtIn="false" value="m"/>
                                     								
                                 </option>
