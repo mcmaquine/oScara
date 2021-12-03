@@ -104,50 +104,50 @@ typedef struct tq_data //profile mode torque data
 #define NYBLE_2   0x0F00
 #define NYBLE_3   0xF000
 
-int servo_on		( modbus_t *servo );
-int servo_off		( modbus_t *servo );
-int is_servo_on		( modbus_t *servo ); //return 1 is it is in SERVO ON, o SERVO OFF, -1 not possible to determine.
-int home_servo		( modbus_t *servo );
-int set_home_method	( modbus_t *servo, int8_t mode );
-int get_home_method	( modbus_t *servo, char *mode );
-int start_home		( modbus_t *servo ); //start homing
-int is_EM2_on		( modbus_t *servo ); //check if servo is EM2 activated (emergency button)
-int home			( modbus_t *servo );
-int set_mode		( modbus_t *servo, char mode);
-int get_mode		( modbus_t *servo, char *mode );
-int position_actual_value( modbus_t *servo);
-int pt_move			( modbus_t *servo, uint16_t point );
-int get_pt_data		( modbus_t *servo, uint16_t point, pt *data);
-int set_pt_data		( modbus_t *servo, uint16_t point, pt *data);
-int set_pp_data		( modbus_t *servo, pt *data);
+int servo_on		( modbus_t *J );
+int servo_off		( modbus_t *J );
+int is_servo_on		( modbus_t *J ); //return 1 is it is in SERVO ON, o SERVO OFF, -1 not possible to determine.
+int home_servo		( modbus_t *J );
+int set_home_method	( modbus_t *J, int8_t mode );
+int get_home_method	( modbus_t *J, char *mode );
+int start_home		( modbus_t *J ); //start homing
+int is_EM2_on		( modbus_t *J ); //check if servo is EM2 activated (emergency button)
+int home			( modbus_t *J );
+int set_mode		( modbus_t *J, char mode);
+int get_mode		( modbus_t *J, char *mode );
+int position_actual_value( modbus_t *J);
+int pt_move			( modbus_t *J, uint16_t point );
+int get_pt_data		( modbus_t *J, uint16_t point, pt *data);
+int set_pt_data		( modbus_t *J, uint16_t point, pt *data);
+int set_pp_data		( modbus_t *J, pt *data);
 
 
 void setBit(uint16_t *word, uint16_t bits);
 void resetBit(uint16_t *word, uint16_t bits);
 
 //Utiliza a função de escrita de multiplos regisradores para escrever 1 somente
-int write_register( modbus_t *servo, int addr, uint16_t data );
+int write_register( modbus_t *J, int addr, uint16_t data );
 
-int servo_on( modbus_t *servo )
+int servo_on( modbus_t *J )
 {
 	uint16_t w_reg;
 
 	setBit(&w_reg, NYBLE_0 );
-	return write_register(servo, MR_CONTROL_WORD, w_reg);
+	return write_register(J, MR_CONTROL_WORD, w_reg);
 }
 
-int servo_off( modbus_t *servo )
+int servo_off( modbus_t *J )
 {
 	uint16_t w_reg;
 
 	resetBit(&w_reg, NYBLE_0);
-	return write_register(servo, MR_CONTROL_WORD, w_reg);
+	return write_register(J, MR_CONTROL_WORD, w_reg);
 }
 
-int is_servo_on( modbus_t *servo )
+int is_servo_on( modbus_t *J )
 {
 	uint16_t r_reg;
-	int status = modbus_read_registers(servo, MR_STATUS_WORD, 1, &r_reg);
+	int status = modbus_read_registers(J, MR_STATUS_WORD, 1, &r_reg);
 	if ( status == -1 )
 	{
 		return status;
@@ -161,22 +161,22 @@ int is_servo_on( modbus_t *servo )
 	}
 }
 
-int set_home_method( modbus_t *servo, int8_t mode )
+int set_home_method( modbus_t *J, int8_t mode )
 {
 	int status;
 	uint16_t w_reg = mode;
 
-	status = write_register( servo , MR_HOMING_METHOD, w_reg);
+	status = write_register( J , MR_HOMING_METHOD, w_reg);
 
 	return status;
 }
 
-int get_home_method( modbus_t *servo, char *mode )
+int get_home_method( modbus_t *J, char *mode )
 {
 	int status;
 	uint16_t r_reg;
 
-	status = modbus_read_registers(servo, MR_HOMING_METHOD, 1, &r_reg);
+	status = modbus_read_registers(J, MR_HOMING_METHOD, 1, &r_reg);
 
 	if( status != -1)
 		*mode = MODBUS_GET_LOW_BYTE( r_reg );
@@ -188,12 +188,12 @@ int get_home_method( modbus_t *servo, char *mode )
  * @param servo modbus_t structure pointer of objects comunication
  * @return -1 if not possible to read status, 0 if not on warning, 1 if its in warning
  */
-int is_EM2_on( modbus_t *servo )
+int is_EM2_on( modbus_t *J )
 {
 	int status;
 	uint16_t r_reg;
 
-	status = modbus_read_registers( servo , MR_STATUS_WORD, 1, &r_reg);
+	status = modbus_read_registers( J , MR_STATUS_WORD, 1, &r_reg);
 
 	if( status == -1 )
 		return status;
@@ -206,7 +206,7 @@ int is_EM2_on( modbus_t *servo )
 			if( (r_reg & MR_READY_TO_SWITCH_ON ) == MR_READY_TO_SWITCH_ON )
 			{
 				//put in servo off
-				write_register(servo, MR_CONTROL_WORD, 0x0);
+				write_register(J, MR_CONTROL_WORD, 0x0);
 				return 1;
 			}else
 				return 0;
@@ -219,29 +219,29 @@ int is_EM2_on( modbus_t *servo )
 /**
  * Realiza home do servo
  */
-int home( modbus_t *servo)
+int home( modbus_t *J)
 {
-	int status, homing, retorno;
+	int status = 0, homing = 0, retorno = 0;
 	uint16_t r_reg;
 
 	//set home mode
 
-	status = set_mode(servo, MR_HOME_MODE);
+	status = set_mode(J, MR_HOME_MODE);
 
 	if( status == -1 )
 		return status;
 
 	//issue home
-	status = modbus_read_registers(servo, MR_CONTROL_WORD, 1, &r_reg);
+	status = modbus_read_registers(J, MR_CONTROL_WORD, 1, &r_reg);
 
 	setBit(&r_reg, BIT_4 ); //bir 4 start homing
 
-	status = write_register(servo, MR_CONTROL_WORD, r_reg );
+	status = write_register(J, MR_CONTROL_WORD, r_reg );
 
 	if( status == -1)
 		return status;
 
-	if( modbus_read_registers( servo, MR_STATUS_WORD, 1, &r_reg) == -1)
+	if( modbus_read_registers( J, MR_STATUS_WORD, 1, &r_reg) == -1)
 		return -1;
 
 	homing = 1;
@@ -262,14 +262,14 @@ int home( modbus_t *servo)
 			retorno = 0; //home nao realizado
 		}
 
-		status = modbus_read_registers( servo, MR_STATUS_WORD, 1, &r_reg);
+		status = modbus_read_registers( J, MR_STATUS_WORD, 1, &r_reg);
 		if( status == -1 )
 			break;
 		printf("STATUS WORD %X\n", r_reg);
 	}
-	status = modbus_read_registers(servo, MR_CONTROL_WORD, 1, &r_reg);
+	status = modbus_read_registers(J, MR_CONTROL_WORD, 1, &r_reg);
 	resetBit(&r_reg, BIT_4); //reset bit 4
-	status = write_register(servo, MR_CONTROL_WORD, r_reg );
+	status = write_register(J, MR_CONTROL_WORD, r_reg );
 	if (status == -1) return -1;
 
 	return retorno;
@@ -277,16 +277,16 @@ int home( modbus_t *servo)
 
 /**
  * Set mode of operation, if return -1 means that mode of operation was no set
- * @param servo modbus_t struct object
+ * @param J modbus_t struct object
  * @param mode	mode of operation (Eg. MR_HOME_MODE)
  * @return mode operation set, if -1 mode was note set
  */
-int set_mode( modbus_t *servo, char mode)
+int set_mode( modbus_t *J, char mode)
 {
 	int status;
 	uint16_t w_reg = mode;
 
-	status = write_register(servo, MR_MODE_OF_OPERATION, w_reg);
+	status = write_register(J, MR_MODE_OF_OPERATION, w_reg);
 
 	return status;
 }
@@ -294,12 +294,12 @@ int set_mode( modbus_t *servo, char mode)
 /*
  * Get servo current mode
  */
-int get_mode( modbus_t *servo, char *mode)
+int get_mode( modbus_t *J, char *mode)
 {
 	int status;
 	uint16_t r_reg;
 
-	status = modbus_read_registers(servo, MR_MODES_OPERATION_DISPLAY, 1, &r_reg);
+	status = modbus_read_registers(J, MR_MODES_OPERATION_DISPLAY, 1, &r_reg);
 
 	if( status == -1 )
 	{
@@ -315,11 +315,11 @@ int get_mode( modbus_t *servo, char *mode)
 /**
  * utiliza a função write_registers para escrever apenas 1 word
  */
-int write_register( modbus_t *servo, int addr, uint16_t data)
+int write_register( modbus_t *J, int addr, uint16_t data)
 {
 	int status = 0;
 
-	status = modbus_write_registers(servo, addr, 1, &data );
+	status = modbus_write_registers(J, addr, 1, &data );
 
 	return status;
 }
@@ -328,12 +328,12 @@ int write_register( modbus_t *servo, int addr, uint16_t data)
  * Return the actula servo position
  * @param modbus_t	Communication struct
  */
-int position_actual_value( modbus_t *servo )
+int position_actual_value( modbus_t *J )
 {
 	uint16_t r_reg[3];
 	int stat, position;
 
-	stat = modbus_read_registers(servo, MR_POSITION_ACTUAL_VALUE, 2, r_reg);
+	stat = modbus_read_registers(J, MR_POSITION_ACTUAL_VALUE, 2, r_reg);
 	if( stat == -1) return -1;
 
 	position = r_reg[1];
@@ -344,7 +344,7 @@ int position_actual_value( modbus_t *servo )
 /*
  * Do a move registered on a Point_Table
  */
-int pt_move( modbus_t *servo, uint16_t point)
+int pt_move( modbus_t *J, uint16_t point)
 {
 	uint16_t r_reg;
 	char mode;
@@ -353,24 +353,24 @@ int pt_move( modbus_t *servo, uint16_t point)
 	if( point == 0 ) return 0;
 
 	//check if servo is Enable
-	if( is_servo_on(servo) != 1 ) return 0;
+	if( is_servo_on(J) != 1 ) return 0;
 
 	//check if servo is point table mode
-	if( get_mode(servo, &mode) == -1) return -1;
+	if( get_mode(J, &mode) == -1) return -1;
 	if( mode != MR_POINT_TABLE_MODE ) return 0;
 
-	int stat = modbus_read_registers(servo, MR_CONTROL_WORD, 1, &r_reg);
+	int stat = modbus_read_registers(J, MR_CONTROL_WORD, 1, &r_reg);
 
 	if( stat == -1 ) return -1; //if not possible to read, return -1
 
 	resetBit( &r_reg, BIT_4 ); //reset bit 4
-	stat = write_register(servo, MR_CONTROL_WORD, r_reg ); //write word with reseted bit 4
+	stat = write_register(J, MR_CONTROL_WORD, r_reg ); //write word with reseted bit 4
 
-	stat = write_register(servo, MR_TARGET_POINT_TABLE, point); //write position table number
+	stat = write_register(J, MR_TARGET_POINT_TABLE, point); //write position table number
 	if( stat == -1) return -1;	//if not possible to write, return -1
 
 	setBit(&r_reg, BIT_4 );		//set bit 4
-	stat = write_register(servo, MR_CONTROL_WORD, r_reg); //write word with reseted bit 4
+	stat = write_register(J, MR_CONTROL_WORD, r_reg); //write word with reseted bit 4
 	printf("ControlWord 0x%X\n", r_reg );
 
 	if( stat == -1) return -1;
@@ -406,7 +406,7 @@ void resetBit( uint16_t *word, uint16_t bits )
 /*
  * Get data from a point table previously recorded alloc a pointer pt
  */
-int get_pt_data( modbus_t *servo, uint16_t point, pt **data)
+int get_pt_data( modbus_t *J, uint16_t point, pt **data)
 {
 	const int size = 15;
 	int status;
@@ -414,7 +414,7 @@ int get_pt_data( modbus_t *servo, uint16_t point, pt **data)
 
 	if( point < 1 || point > 255 ) return 0; // only numbers between 1 and 255 (inclusive)
 
-	status = modbus_read_registers(servo, MR_POINT_TABLE_OFFSET + point - 1, size, r_reg);
+	status = modbus_read_registers(J, MR_POINT_TABLE_OFFSET + point - 1, size, r_reg);
 	if( status == -1 ) return -1;
 
 	*data = (pt *)malloc( sizeof (pt) );
@@ -452,7 +452,7 @@ int get_pt_data( modbus_t *servo, uint16_t point, pt **data)
 	return 1;
 }
 
-int set_pt_data( modbus_t *servo, uint16_t point, pt *data )
+int set_pt_data( modbus_t *J, uint16_t point, pt *data )
 {
 	const int size = 15;
 	int status;
@@ -479,7 +479,7 @@ int set_pt_data( modbus_t *servo, uint16_t point, pt *data )
 	reg[13]= data->mcode & 0x0000FFFF;
 	reg[14]= data->mcode >> 16;
 
-	status = modbus_write_registers(servo, MR_POINT_TABLE_OFFSET + point - 1, size, reg);
+	status = modbus_write_registers(J, MR_POINT_TABLE_OFFSET + point - 1, size, reg);
 
 	if( status == -1) return status;
 

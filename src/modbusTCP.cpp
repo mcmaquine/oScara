@@ -9,26 +9,24 @@
 #include <iostream>
 #include <stdlib.h>
 #include <modbus/modbus-tcp.h>
-#include <MR_JE.h>
 #include <thread>
 #include <readline/readline.h>
 #include <readline/history.h>
-#include "robot.h"
-#include "cinematics.h"
+#include <MR_JE.h>
 
 using namespace std;
 
-modbus_t *servo1, *servo2;
-uint16_t w_reg[16], r_reg[16]; //write register and read register respectivelly
+modbus_t *J1, *J2;
+uint16_t wr_reg[16], r_reg[16]; //write register and read register respectivelly
 
 int parse (char *comm);
 
-int connectAll( modbus_t *servo1, modbus_t *servo2 );
-int enableAll( modbus_t *servo1, modbus_t *servo2 );
-int setMode( modbus_t *servo1, modbus_t *servo2, char mode);
-int offAll( modbus_t *servo1, modbus_t *servo2 );
-int positioning_profile( modbus_t *servo1, modbus_t *servo2 );
-int positioning_pt( modbus_t *servo1, modbus_t *servo2, int point );
+int connectAll( modbus_t *J1, modbus_t *J2 );
+int enableAll( modbus_t *J1, modbus_t *J2 );
+int setMode( modbus_t *J1, modbus_t *J2, char mode);
+int offAll( modbus_t *J1, modbus_t *J2 );
+int positioning_profile( modbus_t *J1, modbus_t *J2 );
+int positioning_pt( modbus_t *J1, modbus_t *J2, int point );
 
 uint16_t convert_raw_data_to_word( int nb, uint8_t *bits)
 {
@@ -62,8 +60,8 @@ int main() {
 	int ps;
 	char *comm;
 
-	servo1 = modbus_new_tcp("10.8.0.201", 502);
-	servo2 = modbus_new_tcp("10.8.0.202", 502);
+	J1 = modbus_new_tcp("10.8.0.201", 502);
+	J2 = modbus_new_tcp("10.8.0.202", 502);
 
 	do {
 		do {
@@ -75,29 +73,26 @@ int main() {
 		free( comm );
 	} while ( ps != 0 );
 
-	offAll(servo1, servo2);
-	setMode(servo1, servo2, MR_PROFILE_POSITION_MODE);
-
-	modbus_read_registers(servo1, MR_CONTROL_WORD, 1, r_reg);
+	modbus_read_registers(J1, MR_CONTROL_WORD, 1, r_reg);
 	//resetBit(&r_reg[0], BIT_7 );
-	//write_register(servo2, MR_CONTROL_WORD, r_reg[0]);
+	//write_register(J2, MR_CONTROL_WORD, r_reg[0]);
 
 	printf("ControlWord 0x%X\n", r_reg[0]);
 
-	if( modbus_read_registers(servo1, MR_STATUS_WORD , 1 , r_reg) == -1 )
+	if( modbus_read_registers(J1, MR_STATUS_WORD , 1 , r_reg) == -1 )
 		printf("Note read %s", modbus_strerror(errno) );
 	else
 		printf("Inputs INT: %d ex: 0x%X\n", r_reg[0], r_reg[0]);
 
-	if( get_pt_data(servo2, 3, &teste) == -1)
+	if( get_pt_data(J2, 3, &teste) == -1)
 	{
 		printf("No read\n");
 	}
 
-	modbus_close( servo2 );
-	modbus_close( servo1 );
-	modbus_free( servo2 );
-	modbus_free( servo1 );
+	modbus_close( J2 );
+	modbus_close( J1 );
+	modbus_free( J2 );
+	modbus_free( J1 );
 	free(teste);
 
 	//this_thread::sleep_for( chrono::milliseconds( 980 ) );
@@ -105,25 +100,35 @@ int main() {
 	return 0;
 }
 
+/**
+ * 	Aqui tem todas as funcoes que
+ */
 int parse( char *comm)
 {
 	int status;
 
-	if(!strcmp(comm, "exit"))
+	if(!strcmp(comm, "exit")) //sair
 	{
 		printf("Exit\n");
 		return 0;
 	}
-	else if( !strcmp( comm, "on"))
+	else if( !strcmp( comm, "on")) //servo on
 	{
 		printf("Servo On\n");
+		status = enableAll(J1, J2);
 		return 1;
 	}
-	else if( !strcmp( comm, "connect"))
+	else if( !strcmp( comm, "connect")) //conectar no modbus
 	{
-		printf("Connect servos");
-		status = connectAll(servo1, servo2);
-		return 1;
+		printf("Connect servos\n");
+		status = connectAll(J1, J2);
+		return status;
+	}
+	else if( !strcmp(comm, "off")) //realiza servo off
+	{
+		status = offAll(J1, J2);
+		printf("Servo off\n");
+		return status;
 	}
 	else
 	{
@@ -132,55 +137,54 @@ int parse( char *comm)
 	}
 }
 
-int connectAll( modbus_t *sevo1, modbus_t *servo2 )
+int connectAll( modbus_t *sevo1, modbus_t *J2 )
 {
 	//Verifica se o objeto modbus foi criado
-	if (servo1 == NULL && servo2 == NULL) {
+	if (J1 == NULL && J2 == NULL) {
 	    printf("Unable to allocate libmodbus context\n");
 	    return -1;
 	}
 
 	//Verifica se a comunicacao foi realizada
-	if( modbus_connect( servo1 ) == -1 )
+	if( modbus_connect( J1 ) == -1 )
 	{
 		printf( "Connection failed %s\n", modbus_strerror(errno) );
 		return -1;
 	}
-	if( modbus_connect( servo2 ) == -1 )
+	if( modbus_connect( J2 ) == -1 )
 	{
 		printf( "Connection failed %s\n", modbus_strerror(errno) );
 		return -1;
 	}
-	modbus_flush( servo1 );
-	modbus_flush( servo2 );
+	modbus_flush( J1 );
+	modbus_flush( J2 );
 
 	return 1;
 }
 
-int enableAll( modbus_t *servo1, modbus_t *servo2 )
+int enableAll( modbus_t *J1, modbus_t *J2 )
 {
-	//set_home_method(servo1, MR_METHOD_35);
-	servo_on( servo1 );
-	servo_on( servo2 );
+	//set_home_method(J1, MR_METHOD_35);
+	servo_on( J1 );
+	servo_on( J2 );
 
 	return 1;
 }
 
-int offAll( modbus_t *servo1, modbus_t *servo2 )
+int offAll( modbus_t *J1, modbus_t *J2 )
 {
-	servo_off( servo1 );
-	servo_off( servo2 );
+	servo_off( J1 );
+	servo_off( J2 );
 
 	return 1;
 }
 
-int setMode( modbus_t *servo1, modbus_t *servo2, char mode)
+int setMode( modbus_t *J1, modbus_t *J2, char mode)
 {
-	set_mode(servo1, MR_POINT_TABLE_MODE);
-	set_mode(servo2, MR_POINT_TABLE_MODE);
+	set_mode(J1, mode);
 	//this_thread::sleep_for(500ms); //wait half second before continue
-	get_mode(servo1, &mode);
-	//home(servo1);
+	get_mode(J1, &mode);
+	//home(J1);
 	this_thread::sleep_for(500ms); //wait half second before continue
 
 	switch (mode) {
@@ -206,13 +210,13 @@ int setMode( modbus_t *servo1, modbus_t *servo2, char mode)
 	return 1;
 }
 
-int positioning_pt(modbus_t *servo1, modbus_t *servo2, int point )
+int positioning_pt(modbus_t *J1, modbus_t *J2, int point )
 {
-	if( pt_move(servo1, point) == 1)
+	if( pt_move(J1, point) == 1)
 	{
 		printf("Movendo servo 1...\n");
 	}
-	if( pt_move(servo2, point) == 1 )
+	if( pt_move(J2, point) == 1 )
 	{
 		printf("Movendo servo 2...\n");
 	}
@@ -268,7 +272,7 @@ int positioning_pt(modbus_t *servo1, modbus_t *servo2, int point )
 
 	return 1;
 
-int stat = home(servo2);
+int stat = home(J2);
 		switch( stat )
 		{
 			case -1:
@@ -284,5 +288,5 @@ int stat = home(servo2);
 				break;
 		}
 
-	set_mode(servo2, MR_POINT_TABLE);
+	set_mode(J2, MR_POINT_TABLE);
  */
