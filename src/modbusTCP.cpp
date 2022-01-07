@@ -16,6 +16,18 @@
 
 using namespace std;
 
+#define MAX_LENGTH 20
+#define NUM_STRINGS 5
+
+typedef struct points
+{
+	char name[15];
+	int J1;
+	int J2;
+	int J3;
+	int J4;
+}point;
+
 modbus_t *J1, *J2;
 uint16_t wr_reg[16], r_reg[16]; //write register and read register respectivelly
 
@@ -27,6 +39,14 @@ int setMode( modbus_t *J1, modbus_t *J2, char mode);
 int offAll( modbus_t *J1, modbus_t *J2 );
 int positioning_profile( modbus_t *J1, modbus_t *J2 );
 int positioning_pt( modbus_t *J1, modbus_t *J2, int point );
+
+/**
+ * Separa a string em tokens. A primeira string é o comando e as demais os parametros
+ * cada funcao trata do seu parametro
+ */
+int tokenString	( char comm[NUM_STRINGS][MAX_LENGTH], char *parse );
+int save_point	( char comm[NUM_STRINGS][MAX_LENGTH], int size );
+int show_points ( char comm[NUM_STRINGS][MAX_LENGTH], int size);
 
 uint16_t convert_raw_data_to_word( int nb, uint8_t *bits)
 {
@@ -106,29 +126,42 @@ int main() {
 int parse( char *comm)
 {
 	int status;
+	char arr[NUM_STRINGS][MAX_LENGTH] = {""};
 
-	if(!strcmp(comm, "exit")) //sair
+	int size = tokenString( arr, comm );
+
+	if(!strcmp(arr[0], "exit")) //sair
 	{
 		printf("Exit\n");
 		return 0;
 	}
-	else if( !strcmp( comm, "on")) //servo on
+	else if( !strcmp( arr[0], "on")) //servo on
 	{
 		printf("Servo On\n");
 		status = enableAll(J1, J2);
 		return 1;
 	}
-	else if( !strcmp( comm, "connect")) //conectar no modbus
+	else if( !strcmp( arr[0], "connect")) //conectar no modbus
 	{
 		printf("Connect servos\n");
 		status = connectAll(J1, J2);
 		return status;
 	}
-	else if( !strcmp(comm, "off")) //realiza servo off
+	else if( !strcmp( arr[0], "off")) //realiza servo off
 	{
 		status = offAll(J1, J2);
 		printf("Servo off\n");
 		return status;
+	}
+	else if( !strcmp( arr[0], "pshow"))
+	{
+		show_points( arr, size);
+		return (1);
+	}
+	else if( !strcmp( arr[0], "psave") )
+	{
+		save_point( arr, size);
+		return ( 1 );
 	}
 	else
 	{
@@ -219,6 +252,78 @@ int positioning_pt(modbus_t *J1, modbus_t *J2, int point )
 	if( pt_move(J2, point) == 1 )
 	{
 		printf("Movendo servo 2...\n");
+	}
+
+	return 1;
+}
+
+int tokenString(char comm[NUM_STRINGS][MAX_LENGTH], char * parse)
+{
+	int index = 0;
+
+	char * token = strtok(parse, " ");
+
+	while( token != NULL )
+	{
+		strcpy( comm[index], token );
+        token = strtok(NULL, " ");
+        index++;
+    }
+
+	return index;
+}
+
+int save_point	(	char comm[NUM_STRINGS][MAX_LENGTH], int size	)
+{
+	FILE *fptr;
+	point p;
+
+	//Verifica o nome do ponto, nao pode ser vazio pela variavel size. Nao pode ser menor que 2
+	if( size < 2)
+	{
+		printf("E necessario nomear o ponto. Ex: p1, ponto1, pick, place\n");
+		return 0;
+	}
+
+	//ler as posições dos servos
+	p.J1 = position_actual_value( J1 );
+	p.J2 = position_actual_value( J2 );
+	//p.J3 = position_actual_value( J3 );
+	//p.J4 = position_actual_value( J4 );
+
+	//abrir o arquivo de pontos.
+	if ((fptr = fopen("points.bin","ab")) == NULL){
+		printf("Error! opening file\n");
+		// Program exits if the file pointer returns NULL.
+		return(0);
+	}
+
+	//antes verificar se um ponto ja existe
+	fseek( fptr, -sizeof(point), SEEK_END );
+	fwrite( &p, sizeof(point), 1, fptr);
+	fclose( fptr );
+
+	return 1;
+}
+
+int show_points (char comm[NUM_STRINGS][MAX_LENGTH], int size)
+{
+	FILE *fptr;
+	point p;
+	int seek = 0;
+	int control = 0;
+
+	if(( fptr = fopen("points.bin", "rb")) == NULL ){
+		printf("Nao foi possivel abrir tabela de pontos\n");
+		return(0);
+	}
+
+	seek = fread(&p, sizeof(point), 1, fptr);
+	while( seek != 0 || control > 10)
+	{
+		printf("Point name %s\t J1: %d\t J2: %d\t J3: %d\t J4: %d\n", p.name, p.J1, p.J2, p.J3, p.J4);
+		control++;
+		seek = fread(&p, sizeof(point), 1, fptr);
 	}
 
 	return 1;
