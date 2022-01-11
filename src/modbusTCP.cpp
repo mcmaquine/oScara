@@ -198,8 +198,10 @@ int connectAll( modbus_t *sevo1, modbus_t *J2 )
 int enableAll( modbus_t *J1, modbus_t *J2 )
 {
 	//set_home_method(J1, MR_METHOD_35);
-	servo_on( J1 );
-	servo_on( J2 );
+	int status = 0;
+	status = servo_on( J1 );
+	status = status << 1;
+	status = servo_on( J2 );
 
 	return 1;
 }
@@ -288,8 +290,8 @@ int save_point	(	char comm[NUM_STRINGS][MAX_LENGTH], int size	)
 	//ler as posições dos servos
 	p.J1 = position_actual_value( J1 );
 	p.J2 = position_actual_value( J2 );
-	//p.J3 = position_actual_value( J3 );
-	//p.J4 = position_actual_value( J4 );
+	p.J3 = 0;
+	p.J4 = 0;
 
 	//abrir o arquivo de pontos.
 	if ((fptr = fopen("points.bin","ab")) == NULL){
