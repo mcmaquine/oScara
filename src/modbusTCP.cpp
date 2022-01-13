@@ -29,15 +29,16 @@ typedef struct points
 }point;
 
 modbus_t *J1, *J2;
+//modbus_t *J3, *J4; servos ainda nao existentes
 uint16_t wr_reg[16], r_reg[16]; //write register and read register respectivelly
 
-int parse (char *comm);
+int PARSE (char *comm);
 
 int connectAll( modbus_t *J1, modbus_t *J2 );
 int enableAll( modbus_t *J1, modbus_t *J2 );
 int setMode( modbus_t *J1, modbus_t *J2, char mode);
 int offAll( modbus_t *J1, modbus_t *J2 );
-int positioning_profile( modbus_t *J1, modbus_t *J2 );
+//int positioning_profile( modbus_t *J1, modbus_t *J2 );
 int positioning_pt( modbus_t *J1, modbus_t *J2, int point );
 
 /**
@@ -45,8 +46,16 @@ int positioning_pt( modbus_t *J1, modbus_t *J2, int point );
  * cada funcao trata do seu parametro
  */
 int tokenString	( char comm[NUM_STRINGS][MAX_LENGTH], char *parse );
+
+/**
+ *
+ */
 int save_point	( char comm[NUM_STRINGS][MAX_LENGTH], int size );
 int show_points ( char comm[NUM_STRINGS][MAX_LENGTH], int size);
+int home_servo	( char comm[NUM_STRINGS][MAX_LENGTH], int size);
+int set_mode	( char comm[NUM_STRINGS][MAX_LENGTH], int size);
+int movept	( char comm[NUM_STRINGS][MAX_LENGTH], int size);
+int servo_status	( char comm[NUM_STRINGS][MAX_LENGTH], int size);
 
 uint16_t convert_raw_data_to_word( int nb, uint8_t *bits)
 {
@@ -76,7 +85,6 @@ int convert_word_to_raw_data(int nb, uint16_t data, uint8_t *bits)
 int main() {
 
 	thread read;
-	pt *teste;
 	int ps;
 	char *comm;
 
@@ -89,41 +97,22 @@ int main() {
 		} while ( comm == NULL );
 
 		//add_history( comm );
-		ps = parse( comm );
+		ps = PARSE( comm );
 		free( comm );
 	} while ( ps != 0 );
-
-	modbus_read_registers(J1, MR_CONTROL_WORD, 1, r_reg);
-	//resetBit(&r_reg[0], BIT_7 );
-	//write_register(J2, MR_CONTROL_WORD, r_reg[0]);
-
-	printf("ControlWord 0x%X\n", r_reg[0]);
-
-	if( modbus_read_registers(J1, MR_STATUS_WORD , 1 , r_reg) == -1 )
-		printf("Note read %s", modbus_strerror(errno) );
-	else
-		printf("Inputs INT: %d ex: 0x%X\n", r_reg[0], r_reg[0]);
-
-	if( get_pt_data(J2, 3, &teste) == -1)
-	{
-		printf("No read\n");
-	}
 
 	modbus_close( J2 );
 	modbus_close( J1 );
 	modbus_free( J2 );
 	modbus_free( J1 );
-	free(teste);
 
-	//this_thread::sleep_for( chrono::milliseconds( 980 ) );
-	cout	<<	"Exit"	<<	endl;
 	return 0;
 }
 
 /**
  * 	Aqui tem todas as funcoes que
  */
-int parse( char *comm)
+int PARSE( char *comm)
 {
 	int status;
 	char arr[NUM_STRINGS][MAX_LENGTH] = {""};
@@ -162,6 +151,26 @@ int parse( char *comm)
 	{
 		save_point( arr, size);
 		return ( 1 );
+	}
+	else if( !strcmp( arr[0], "home"))
+	{
+		status = home_servo(arr , size);
+		return status;
+	}
+	else if( !strcmp( arr[0], "mode"))
+	{
+		status = set_mode( arr, size);
+		return status;
+	}
+	else if( !strcmp( arr[0], "pt"))
+	{
+		status = movept( arr, size);
+		return status;
+	}
+	else if( !strcmp( arr[0], "status"))
+	{
+		status = servo_status( arr, size);
+		return status;
 	}
 	else
 	{
@@ -217,6 +226,9 @@ int offAll( modbus_t *J1, modbus_t *J2 )
 int setMode( modbus_t *J1, modbus_t *J2, char mode)
 {
 	set_mode(J1, mode);
+	set_mode(J2, mode);
+	//set_mode(J3, mode);
+	//set_mode(J4, mode);
 	//this_thread::sleep_for(500ms); //wait half second before continue
 	get_mode(J1, &mode);
 	//home(J1);
@@ -247,10 +259,10 @@ int setMode( modbus_t *J1, modbus_t *J2, char mode)
 
 int positioning_pt(modbus_t *J1, modbus_t *J2, int point )
 {
-	if( pt_move(J1, point) == 1)
+	/*if( pt_move(J1, point) == 1)
 	{
 		printf("Movendo servo 1...\n");
-	}
+	}*/
 	if( pt_move(J2, point) == 1 )
 	{
 		printf("Movendo servo 2...\n");
@@ -288,6 +300,7 @@ int save_point	(	char comm[NUM_STRINGS][MAX_LENGTH], int size	)
 	}
 
 	//ler as posições dos servos
+	strcpy( p.name, comm[1] );
 	p.J1 = position_actual_value( J1 );
 	p.J2 = position_actual_value( J2 );
 	p.J3 = 0;
@@ -331,27 +344,132 @@ int show_points (char comm[NUM_STRINGS][MAX_LENGTH], int size)
 	return 1;
 }
 
+int home_servo	( char comm[NUM_STRINGS][MAX_LENGTH], int size)
+{
+	//Verifica a junta do robo, nao pode ser vazio pela variavel size. Nao pode ser menor que 2
+	int status = 0;
+	if( size < 2)
+	{
+		printf("E necessario especificar a junta. Ex: J1, J2\n");
+		return 1;
+	}
+
+	if( !strcmp( "J1", comm[1] ) )
+	{
+		status = home(J1);
+		if( status == -1 ) printf("Home nao realziado em %s\n", comm[1]);
+		else if( status == 1 ) printf("Home done\n");
+		return 1;
+	}else if( !strcmp( "J2", comm[1] ))
+	{
+		status = home(J2);
+		if( status == -1 ) printf("Home nao realizado em %s\n", comm[1]);
+		else if( status == 1) printf("Home done\n");
+		return 1;
+	}else if( !strcmp( "J3", comm[1] ))
+	{
+		printf("J3 não presente no momento\n");
+		return 1;
+	}else if( !strcmp( "J4", comm[1] ))
+	{
+		printf("J4 não presente no momento\n");
+		return 1;
+	}else
+	{
+		printf("E necessario especificar a junta. Ex: J1, J2\n");
+		return 1;
+	}
+}
+
+int set_mode	( char comm[NUM_STRINGS][MAX_LENGTH], int size)
+{
+	int status = 0;
+	if( size < 2)
+	{
+		printf("Parametros insuficientes\n");
+		return 1;
+	}
+
+	if( !strcmp( comm[1], "pt")){
+		status = setMode(J1, J2, MR_POINT_TABLE_MODE);
+		return 1;
+	}else if( !strcmp( comm[1], "hm"))
+	{
+		status = setMode( J1, J2, MR_HOME_MODE);
+		return 1;
+	}else if( !strcmp( comm[1], "pm"))
+	{
+		status = setMode(J1, J2, MR_PROFILE_POSITION_MODE);
+		return 1;
+	}else
+		printf("Opcao de modo invalido\n");
+
+	return 1;
+}
+
+int movept	( char comm[NUM_STRINGS][MAX_LENGTH], int size)
+{
+	int status = 0;
+	long point;
+	char *ptr;
+	char stringNumber[20];
+
+	strcpy(stringNumber, comm[1]);
+
+	if( size < 2)
+	{
+		printf("Parametros insuficientes\n");
+		return 1;
+	}
+
+	point = strtol(stringNumber, &ptr, 10);
+
+	if( (point < 1) || (point > 250) ){
+		printf("Parametro precisa estar entre 0 e 250\n");
+		return 1;
+	}
+
+	positioning_pt(J1, J2, (int)point );
+
+	return 1;
+}
+
+int servo_status	( char comm[NUM_STRINGS][MAX_LENGTH], int size)
+{
+	uint16_t status;
+	char mode;
+
+	if( modbus_read_registers(J1, MR_STATUS_WORD, 1, &status) == -1)
+		printf("Nao foi pessivel ler estado de J1\n");
+	else printf("J1 status: 0x%.X\n", status);
+
+	if( modbus_read_registers(J2, MR_STATUS_WORD, 1, &status) == -1)
+		printf("Nao foi pessivel ler estado de J2\n");
+	else
+	{
+		printf("J2 status: 0x%.X\n", status);
+		get_mode(J2, &mode);
+		printf("Mode %d\n", mode);
+	}
+
+	return 1;
+}
 /**
- * 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
+ *
  * cout << "Modbus Test" << endl; // prints "Hello Modbus"
 	read_status =  modbus_read_input_bits(mb, 0, 8, bits);
 	input = convert_raw_data_to_word(8, bits);
-
 	cout << "Modbus read inputs: " << read_status << endl;
-
 	printf("Inputs Hex: 0x%X\n", input);
-
 	for (int var = 0; var < 8; ++var) {
 		printf("Input[%d]: %d\n", var, bits[var]);
 	}
-
 	int program()
 {
 	//if enters here, Factory I/O is running
 	modbus_read_input_bits(servo1, 0, 16, bits);
 	coil[0] = 1;
 	modbus_write_bits(servo1, 16, 16, coil);
-
 	do
 	{
 		if( bits[1] == 1 && bits[2] == 0 ) //sensor B esta detectando
@@ -359,16 +477,13 @@ int show_points (char comm[NUM_STRINGS][MAX_LENGTH], int size)
 			coil[0] = 0;
 			coil[1] = 1;
 		}
-
 		if( bits[1] == 0 && bits[2] == 1) //sensor A esta detectando
 		{
 			coil[0] = 1;
 			coil[1] = 0;
 		}
-
 		modbus_write_bits(servo1, 16, 16, coil);
 		modbus_read_input_bits(servo1, 0, 16, bits);
-
 		if( bits[0] == 0 ) {
 			coil[0] = 0;
 			coil[1] = 0;
@@ -376,9 +491,7 @@ int show_points (char comm[NUM_STRINGS][MAX_LENGTH], int size)
 			printf("factory I/O paused\n");
 		}
 	}while( bits[0] );
-
 	return 1;
-
 int stat = home(J2);
 		switch( stat )
 		{
@@ -394,6 +507,5 @@ int stat = home(J2);
 			default:
 				break;
 		}
-
 	set_mode(J2, MR_POINT_TABLE);
  */
