@@ -6,6 +6,7 @@
 // Description : Hello World in C++, Ansi-style
 //============================================================================
 
+#include <robot.h>
 #include <iostream>
 #include <stdlib.h>
 #include <modbus/modbus-tcp.h>
@@ -13,24 +14,13 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <MR_JE.h>
+#include <mov.h>
 
 using namespace std;
 
-#define MAX_LENGTH 20
-#define NUM_STRINGS 5
-
-typedef struct points
-{
-	char name[15];
-	int J1;
-	int J2;
-	int J3;
-	int J4;
-}point;
-
 modbus_t *J1, *J2;
 //modbus_t *J3, *J4; servos ainda nao existentes
-uint16_t wr_reg[16], r_reg[16]; //write register and read register respectivelly
+//uint16_t wr_reg[16], r_reg[16]; //write register and read register respectivelly
 
 int PARSE (char *comm);
 
@@ -50,8 +40,6 @@ int tokenString	( char comm[NUM_STRINGS][MAX_LENGTH], char *parse );
 /**
  *
  */
-int save_point	( char comm[NUM_STRINGS][MAX_LENGTH], int size );
-int show_points ( char comm[NUM_STRINGS][MAX_LENGTH], int size);
 int home_servo	( char comm[NUM_STRINGS][MAX_LENGTH], int size);
 int set_mode	( char comm[NUM_STRINGS][MAX_LENGTH], int size);
 int movept	( char comm[NUM_STRINGS][MAX_LENGTH], int size);
@@ -110,7 +98,7 @@ int main() {
 }
 
 /**
- * 	Aqui tem todas as funcoes que
+ * 	Aqui tem todas os comandos do CMD
  */
 int PARSE( char *comm)
 {
@@ -172,6 +160,11 @@ int PARSE( char *comm)
 		status = servo_status( arr, size);
 		return status;
 	}
+	else if( !strcmp( arr[0], "mov"))
+	{
+		status = mov( arr, size );
+		return status;
+	}
 	else
 	{
 		printf("Not a command\n");
@@ -229,7 +222,7 @@ int setMode( modbus_t *J1, modbus_t *J2, char mode)
 	set_mode(J2, mode);
 	//set_mode(J3, mode);
 	//set_mode(J4, mode);
-	//this_thread::sleep_for(500ms); //wait half second before continue
+	this_thread::sleep_for(500ms); //wait half second before continue
 	get_mode(J1, &mode);
 	//home(J1);
 	this_thread::sleep_for(500ms); //wait half second before continue
@@ -285,63 +278,6 @@ int tokenString(char comm[NUM_STRINGS][MAX_LENGTH], char * parse)
     }
 
 	return index;
-}
-
-int save_point	(	char comm[NUM_STRINGS][MAX_LENGTH], int size	)
-{
-	FILE *fptr;
-	point p;
-
-	//Verifica o nome do ponto, nao pode ser vazio pela variavel size. Nao pode ser menor que 2
-	if( size < 2)
-	{
-		printf("E necessario nomear o ponto. Ex: p1, ponto1, pick, place\n");
-		return 0;
-	}
-
-	//ler as posições dos servos
-	strcpy( p.name, comm[1] );
-	p.J1 = position_actual_value( J1 );
-	p.J2 = position_actual_value( J2 );
-	p.J3 = 0;
-	p.J4 = 0;
-
-	//abrir o arquivo de pontos.
-	if ((fptr = fopen("points.bin","ab")) == NULL){
-		printf("Error! opening file\n");
-		// Program exits if the file pointer returns NULL.
-		return(0);
-	}
-
-	//antes verificar se um ponto ja existe
-	fseek( fptr, -sizeof(point), SEEK_END );
-	fwrite( &p, sizeof(point), 1, fptr);
-	fclose( fptr );
-
-	return 1;
-}
-
-int show_points (char comm[NUM_STRINGS][MAX_LENGTH], int size)
-{
-	FILE *fptr;
-	point p;
-	int seek = 0;
-	int control = 0;
-
-	if(( fptr = fopen("points.bin", "rb")) == NULL ){
-		printf("Nao foi possivel abrir tabela de pontos\n");
-		return(0);
-	}
-
-	seek = fread(&p, sizeof(point), 1, fptr);
-	while( seek != 0 || control > 10)
-	{
-		printf("Point name %s\t J1: %d\t J2: %d\t J3: %d\t J4: %d\n", p.name, p.J1, p.J2, p.J3, p.J4);
-		control++;
-		seek = fread(&p, sizeof(point), 1, fptr);
-	}
-
-	return 1;
 }
 
 int home_servo	( char comm[NUM_STRINGS][MAX_LENGTH], int size)
